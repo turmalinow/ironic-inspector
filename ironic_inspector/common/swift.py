@@ -50,6 +50,12 @@ SWIFT_OPTS = [
                help=_('Swift endpoint type.')),
     cfg.StrOpt('os_region',
                help=_('Keystone region to get endpoint for.')),
+    cfg.StrOpt('swift_user',
+               help=_('Username for SwiftAPI authentication.')),
+    cfg.StrOpt('swift_key',
+               help=_('Key for SwiftAPI authentication.')),
+    cfg.StrOpt('swift_auth_url',
+               help=_('SwiftAPI authentication URL.')),
 ]
 
 CONF.register_opts(SWIFT_OPTS, group=SWIFT_GROUP)
@@ -88,8 +94,10 @@ class SwiftAPI(object):
         )
         token = SWIFT_SESSION.get_token()
         params = dict(retries=CONF.swift.max_retries,
-                      preauthurl=swift_url,
-                      preauthtoken=token)
+                      user=CONF.swift.swift_user,
+                      key=CONF.swift.swift_key,
+                      authurl=CONF.swift.swift_auth_url)
+
         # NOTE(pas-ha):session.verify is for HTTPS urls and can be
         # - False (do not verify)
         # - True (verify but try to locate system CA certificates)
@@ -104,7 +112,7 @@ class SwiftAPI(object):
 
         self.connection = swift_client.Connection(**params)
 
-    def create_object(self, object, data, container=CONF.swift.container,
+    def create_object(self, object, data, container=None,
                       headers=None):
         """Uploads a given string to Swift.
 
@@ -115,6 +123,8 @@ class SwiftAPI(object):
         :returns: The Swift UUID of the object
         :raises: utils.Error, if any operation with Swift fails.
         """
+        if container is None:
+            container = CONF.swift.container
         try:
             self.connection.put_container(container)
         except swift_exceptions.ClientException as e:
@@ -140,7 +150,7 @@ class SwiftAPI(object):
 
         return obj_uuid
 
-    def get_object(self, object, container=CONF.swift.container):
+    def get_object(self, object, container=None):
         """Downloads a given object from Swift.
 
         :param object: The name of the object in Swift
@@ -148,6 +158,8 @@ class SwiftAPI(object):
         :returns: Swift object
         :raises: utils.Error, if the Swift operation fails.
         """
+        if container is None:
+            container = CONF.swift.container
         try:
             headers, obj = self.connection.get_object(container, object)
         except swift_exceptions.ClientException as e:
